@@ -13,14 +13,13 @@ class D20Bot(JabberBot):
 
     @botcmd
     def roll(self,mess,args):
+	(args,comment) = tuple(args.split('#'))
         argv = args.split()
         name = mess.getFrom().getNode()
         if name == 'opd20':
             name = mess.getFrom().getResource()
         res = []
         for i in argv:
-            if i[0] == '#':
-                break
             dice = i.split('d')
             if len(dice) == 2:
                 for _ in range(int(dice[0])):
@@ -30,7 +29,7 @@ class D20Bot(JabberBot):
         total = 0
         for i in res:
             total += i
-        return ""+name+" rolled "+str(total)+" "+repr(res)
+        return ""+name+" rolled "+str(total)+" "+repr(res)+"\n"+comment
 
 bot = D20Bot(username,password,**{'command_prefix':'//'})
 
