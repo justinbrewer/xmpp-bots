@@ -578,6 +578,7 @@ class JabberBot(object):
                 try:
                     reply = self.commands[cmd](mess, args)
                 except Exception, e:
+                    print e
                     self.log.exception('An error happened while processing '\
                         'a message ("%s") from %s: %s"' %
                         (text, jid, traceback.format_exc(e)))

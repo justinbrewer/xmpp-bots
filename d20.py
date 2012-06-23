@@ -18,11 +18,15 @@ class D20Bot(JabberBot):
         if name == 'opd20':
             name = mess.getFrom().getResource()
         res = []
-        dice = map(int,argv[0].split('d'))
-        for _ in range(dice[0]):
-            res.append(random.randint(1,dice[1]))
-        for i in argv[1:]:
-            res.append(int(i))
+        for i in argv:
+            if i[0] == '#':
+                break
+            dice = i.split('d')
+            if len(dice) == 2:
+                for _ in range(int(dice[0])):
+                    res.append(random.randint(1,int(dice[1])))
+            else:
+                res.append(int(i))
         total = 0
         for i in res:
             total += i
