@@ -7,6 +7,8 @@ chatrooms = []
 
 from jabberbot import JabberBot, botcmd
 import random
+import logging
+logging.basicConfig()
 
 class D20Bot(JabberBot):
     PING_FREQUENCY = 60
