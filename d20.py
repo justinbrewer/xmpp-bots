@@ -3,7 +3,7 @@
 #Config
 username = ""
 password = ""
-chatroom = ""
+chatrooms = []
 
 from jabberbot import JabberBot, botcmd
 import random
@@ -16,10 +16,12 @@ class D20Bot(JabberBot):
         args,comment = (args.split('#',1)+[''])[:2]
         comment = '\n'+comment if comment != '' else ''
         
-        argv = args.split()
-        name = mess.getFrom().getNode()
-        if name == 'opd20':
+        if mess.getFrom().getStripped() in chatrooms:
             name = mess.getFrom().getResource()
+        else:
+            name = mess.getFrom().getNode()
+        
+        argv = args.split()
         res = []
         for i in argv:
             dice = i.split('d')
@@ -35,7 +37,7 @@ class D20Bot(JabberBot):
 
 bot = D20Bot(username,password,**{'command_prefix':'//'})
 
-if chatroom != "":
-	bot.join_room(chatroom)
+for i in chatrooms:
+	bot.join_room(i)
 
 bot.serve_forever()
