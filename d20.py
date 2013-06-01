@@ -16,7 +16,7 @@ class D20Bot(JabberBot):
     @botcmd
     def roll(self,mess,args):
         args,comment = (args.split('#',1)+[''])[:2]
-        comment = '\n'+comment if comment != '' else ''
+        comment = ' '+comment if comment != '' else ''
         
         if mess.getFrom().getStripped() in chatrooms:
             name = mess.getFrom().getResource()
@@ -36,6 +36,10 @@ class D20Bot(JabberBot):
         for i in res:
             total += i
         return ""+name+" rolled "+str(total)+" "+repr(res)+comment
+
+    @botcmd
+    def r(self,mess,args):
+        return self.roll(mess,"1d20 "+args)
 
 bot = D20Bot(username,password,**{'command_prefix':'//'})
 
