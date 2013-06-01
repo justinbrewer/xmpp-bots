@@ -41,6 +41,18 @@ class D20Bot(JabberBot):
     def r(self,mess,args):
         return self.roll(mess,"1d20 "+args)
 
+    @botcmd
+    def sr(self,mess,args):
+        args,comment = (args.split('#',1)+[''])[:2]
+	args = args.split(',')
+
+        braced = '{'
+        for i in args:
+            braced = braced + i + ','
+        braced = braced[:-1]+'}'
+
+        return self.r(mess,braced+'#'+comment)
+
 bot = D20Bot(username,password,**{'command_prefix':'//'})
 
 for i in chatrooms:
