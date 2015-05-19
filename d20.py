@@ -16,6 +16,9 @@ class BetGame():
     bets = {}
     dealer = 0
     turn = 0
+    ante_amount = 1000
+    ante_factor = 1.5
+    ante_max = 50000
 
     def enter(self,name,amount):
         if name in self.players:
@@ -28,7 +31,7 @@ class BetGame():
     def bet(self,name,amount):
         if not name in self.players:
             return False
-        if self.bet_order[self.turn] != name:
+        if self.turn != None and self.bet_order[self.turn] != name:
             return False
 
         if self.players[name] > amount:
@@ -53,10 +56,42 @@ class BetGame():
             amount = amount + min(entitlement, v)
             self.bets[k] = max(v - entitlement, 0)
         self.players[name] = self.players[name] + amount
+
+        if self.pot() == 0:
+            self.dealer = (self.dealer + 1) % len(self.players)
+            self.turn = self.dealer
+            self.ante_amount = min(self.ante_max, int(self.ante_amount * self.ante_factor))
+            
         return amount
+
+    def ante(self):
+        for k,v in self.players.items():
+            self.bets[k] = self.bets[k] + min(self.ante_amount, v)
+            self.players[k] = max(v - self.ante_amount, 0)
 
     def pot(self):
         return sum(self.bets.itervalues())
+
+    def print_pot(self):
+        result = ""
+        for k,v in self.bets.items():
+            if self.players[k] == 0:
+                result = result + k + " is all-in for " + str(v) + " chips.\n"
+            else:
+                result = result + k + " has bet " + str(v) + " chips.\n"
+        return result
+
+    def print_turn(self):
+        if self.turn != None:
+            return self.bet_order[self.turn]
+        else:
+            return None
+
+    def print_stats(self):
+        result = "\n\n"
+        for k,v in self.players.items():
+            result = result + k + " has " + str(v) + " chips.\n"
+        return result + "\n\n" + self.print_pot()
 
 class D20Bot(JabberBot):
     PING_FREQUENCY = 60
@@ -85,16 +120,32 @@ class D20Bot(JabberBot):
             return "" + name + " is already in the game."
 
     @botcmd
+    def ante(self,mess,args):
+        self.game.ante()
+        return self.game.print_pot()
+
+    @botcmd
+    def turn(self,mess,args):
+        if self.game.print_turn() != None:
+            return "" + self.game.print_turn() + "'s turn to bet."
+        else:
+            return "All players are all-in."
+
+    @botcmd
     def bet(self,mess,args):
         name = self.who(mess)
         amount = int(args)
         result = self.game.bet(name, amount)
+        message = ""
         if result == True:
-            return "" + name + " bet " + str(amount) + " chips."
+            message = "" + name + " bet " + str(amount) + " chips."
         elif result == False:
-            return "It is not your turn to bet."
+            message = "It is not your turn to bet."
         else:
-            return "" + name + " bet " + str(amount) + " chips. They are now all-in for " + str(result) + " chips."
+            message = "" + name + " bet " + str(amount) + " chips. They are now all-in for " + str(result) + " chips."
+        if self.game.print_turn() != None:
+            message = message + "\n" + self.game.print_turn() + "'s turn to bet."
+        return message
 
     @botcmd
     def win(self,mess,args):
@@ -106,7 +157,17 @@ class D20Bot(JabberBot):
             potmsg = ""
             if pot > 0:
                 potmsg = " There are still " + str(pot) + " chips in the pot."
+            else:
+                potmsg = "\n" + self.game.print_turn() +"'s turn to bet."
             return "" + args + " won " + str(result) + " chips." + potmsg
+
+    @botcmd
+    def pot(self,mess,args):
+        return self.game.print_pot()
+
+    @botcmd
+    def stats(self,mess,args):
+        return self.game.print_stats()
 
     def rolls(self,mess,args):
         args,comment = (args.split('#',1)+[''])[:2]
