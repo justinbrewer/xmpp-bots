@@ -55,12 +55,14 @@ class BetGame():
             return "You need to call, raise, or fold."
         if amount < (self.ante_amount / 2):
             return "Minimum bet is " + str(self.ante_amount / 2) + "."
+        print "Before: " + str(self.bets_incremental)
         message = ""
         true_amount = min(self.players[name], amount)
         self.bets[name] = self.bets[name] + true_amount
         self.players[name] = self.players[name] - true_amount
         self.bets_incremental[name] = true_amount
         self.raiser = self.turn
+        print "After: " + str(self.bets_incremental)
         message = message + name + " bet " + str(true_amount) + " chips."
         if self.players[name] == 0:
              message = message + "They are now all-in for " + str(self.bets[name]) + " chips."
@@ -73,12 +75,13 @@ class BetGame():
             return name + " is not in the game."
         if self.turn != None and self.bet_order[self.turn] != name:
             return "It is not your turn."
+        print "Before: " + str(self.bets_incremental)
         amount = self.bets_incremental[self.bet_order[self.raiser]] - self.bets_incremental[name]
         true_amount = min(self.players[name], amount)
         self.bets[name] = self.bets[name] + true_amount
         self.players[name] = self.players[name] - true_amount
-        self.bets_incremental[name] = true_amount
-        
+        self.bets_incremental[name] = true_amount + self.bets_incremental[name]
+        print "After: " + str(self.bets_incremental)
         message = name + " bet " + str(true_amount) + " chips."
         if self.players[name] == 0:
              message = message + "They are now all-in for " + str(self.bets[name]) + " chips."
@@ -86,26 +89,34 @@ class BetGame():
         self.next_turn(self.turn + 1)
         return message + "\n" + self.print_turn()
 
-    def raising(self,name,amount):
+    def rise(self,name,amount):
         if not name in self.players:
             return name + " is not in the game."
         if self.turn != None and self.bet_order[self.turn] != name:
             return "It is not your turn."
         if amount < (self.ante_amount / 2):
             return "Minimum bet is " + str(self.ante_amount / 2) + "."
+        print "Before: " + str(self.bets_incremental)
         amount = self.bets_incremental[self.bet_order[self.raiser]] - self.bets_incremental[name] + amount
         true_amount = min(self.players[name], amount)
         self.bets[name] = self.bets[name] + true_amount
         self.players[name] = self.players[name] - true_amount
-        self.bets_incremental[name] = true_amount
+        self.bets_incremental[name] = true_amount + self.bets_incremental[name]
         self.raiser = self.turn
+        print "After: " + str(self.bets_incremental)
         message = name + " bet " + str(true_amount) + " chips."
         if self.players[name] == 0:
              message = message + "They are now all-in for " + str(self.bets[name]) + " chips."
 
         self.next_turn(self.turn + 1)
         return message + "\n" + self.print_turn()
-    
+
+    def all_in(self,name):
+        if self.raiser != None:
+            return self.rise(name,self.players[name])
+        else:
+            return self.bet(name,self.players[name])
+            
     def fold(self,name):
         if not name in self.players:
             return name + " is not in the game."
@@ -144,6 +155,23 @@ class BetGame():
             self.bets[k] = self.bets[k] + min(self.ante_amount, v)
             self.players[k] = max(v - self.ante_amount, 0)
         return self.print_pot()
+
+    def eject(self,name):
+        self.players[name] = 0
+        self.bets[name] = 0
+        self.fold(name)
+        self.next_turn(self.turn)
+        return name + " ejected."
+
+    def reset_pot(self):
+        for k,v in self.bets.items():
+            self.players[k] = self.players[k] + v
+            self.bets[k] = 0
+        self.folds = []
+        self.bets_incremental = dict.fromkeys(self.bets_incremental.iterkeys(), 0)
+        self.raiser = None
+        self.turn = self.dealer
+        return self.print_stats()
 
     def next_turn(self, turn):
         if self.turn == None:
@@ -246,8 +274,12 @@ class D20Bot(JabberBot):
         return self.game.call(self.who(mess))
 
     @botcmd
-    def raising(self,mess,args):
-        return self.game.raising(self.who(mess), int(args))
+    def rise(self,mess,args):
+        return self.game.rise(self.who(mess), int(args))
+
+    @botcmd
+    def all_in(self,mess,args):
+        return self.game.all_in(self.who(mess))
 
     @botcmd
     def fold(self,mess,args):
@@ -264,6 +296,14 @@ class D20Bot(JabberBot):
     @botcmd
     def stats(self,mess,args):
         return self.game.print_stats()
+
+    @botcmd
+    def eject(self,mess,args):
+        return self.game.eject(args)
+
+    @botcmd
+    def reset_pot(self,mess,args):
+        return self.game.reset_pot()
 
     def rolls(self,mess,args):
         args,comment = (args.split('#',1)+[''])[:2]
