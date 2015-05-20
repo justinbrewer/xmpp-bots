@@ -11,44 +11,113 @@ import logging
 logging.basicConfig()
 
 class BetGame():
-    players = {}
-    bet_order = []
-    bets = {}
-    dealer = 0
-    turn = 0
-    ante_amount = 1000
-    ante_factor = 1.5
-    ante_max = 50000
+
+    def __init__(self):
+        self.players = {}
+        self.bet_order = []
+        self.bets = {}
+        self.bets_incremental = {}
+        self.folds = []
+        self.dealer = 0
+        self.turn = 0
+        self.raiser = None
+        self.ante_amount = 1000
+        self.ante_factor = 1.5
+        self.ante_max = 50000
 
     def enter(self,name,amount):
         if name in self.players:
-            return False
+            return name + " is already in the game."
+        if amount < 0:
+            return "Please enter a positive amount."
         self.players[name] = amount
         self.bet_order.append(name)
         self.bets[name] = 0
-        return True
+        self.bets_incremental[name] = 0
+        return name + " has entered with " + str(amount) + " chips."
+
+    def check(self,name):
+        if not name in self.players:
+            return name + " is not in the game."
+        if self.turn != None and self.bet_order[self.turn] != name:
+            return "It is not your turn."
+        if sum(self.bets_incremental.itervalues()) > 0:
+            return "You need to call, raise, or fold."
+        self.turn = (self.turn + 1) % len(self.players)
+        return self.print_turn()
 
     def bet(self,name,amount):
         if not name in self.players:
-            return False
+            return name + " is not in the game."
         if self.turn != None and self.bet_order[self.turn] != name:
-            return False
+            return "It is not your turn."
+        if sum(self.bets_incremental.itervalues()) > 0:
+            return "You need to call, raise, or fold."
+        if amount < (self.ante_amount / 2):
+            return "Minimum bet is " + str(self.ante_amount / 2) + "."
+        message = ""
+        true_amount = min(self.players[name], amount)
+        self.bets[name] = self.bets[name] + true_amount
+        self.players[name] = self.players[name] - true_amount
+        self.bets_incremental[name] = true_amount
+        self.raiser = self.turn
+        message = message + name + " bet " + str(true_amount) + " chips."
+        if self.players[name] == 0:
+             message = message + "They are now all-in for " + str(self.bets[name]) + " chips."
 
-        if self.players[name] > amount:
-            self.players[name] = self.players[name] - amount
-            self.bets[name] = self.bets[name] + amount
-            result = True
-        else:
-            self.bets[name] = self.bets[name] + self.players[name]
-            self.players[name] = 0
-            result = self.bets[name]
+        self.next_turn(self.turn + 1)
+        return message + "\n" + self.print_turn()
 
-        self.turn = (self.turn + 1) % len(self.players)
-        return result
+    def call(self,name):
+        if not name in self.players:
+            return name + " is not in the game."
+        if self.turn != None and self.bet_order[self.turn] != name:
+            return "It is not your turn."
+        amount = self.bets_incremental[self.bet_order[self.raiser]] - self.bets_incremental[name]
+        true_amount = min(self.players[name], amount)
+        self.bets[name] = self.bets[name] + true_amount
+        self.players[name] = self.players[name] - true_amount
+        self.bets_incremental[name] = true_amount
+        
+        message = name + " bet " + str(true_amount) + " chips."
+        if self.players[name] == 0:
+             message = message + "They are now all-in for " + str(self.bets[name]) + " chips."
 
+        self.next_turn(self.turn + 1)
+        return message + "\n" + self.print_turn()
+
+    def raising(self,name,amount):
+        if not name in self.players:
+            return name + " is not in the game."
+        if self.turn != None and self.bet_order[self.turn] != name:
+            return "It is not your turn."
+        if amount < (self.ante_amount / 2):
+            return "Minimum bet is " + str(self.ante_amount / 2) + "."
+        amount = self.bets_incremental[self.bet_order[self.raiser]] - self.bets_incremental[name] + amount
+        true_amount = min(self.players[name], amount)
+        self.bets[name] = self.bets[name] + true_amount
+        self.players[name] = self.players[name] - true_amount
+        self.bets_incremental[name] = true_amount
+        self.raiser = self.turn
+        message = name + " bet " + str(true_amount) + " chips."
+        if self.players[name] == 0:
+             message = message + "They are now all-in for " + str(self.bets[name]) + " chips."
+
+        self.next_turn(self.turn + 1)
+        return message + "\n" + self.print_turn()
+    
+    def fold(self,name):
+        if not name in self.players:
+            return name + " is not in the game."
+        if self.turn != None and self.bet_order[self.turn] != name:
+            return "It is not your turn."
+        self.folds.append(name)
+        self.next_turn(self.turn + 1)
+        return self.print_turn()
+    
     def win(self,name):
         if not name in self.players:
-            return False
+            return name + " is not in the game."
 
         entitlement = self.bets[name]
         amount = 0
@@ -61,13 +130,49 @@ class BetGame():
             self.dealer = (self.dealer + 1) % len(self.players)
             self.turn = self.dealer
             self.ante_amount = min(self.ante_max, int(self.ante_amount * self.ante_factor))
-            
-        return amount
+            self.raiser = None
+            self.folds = []
+            self.bets_incremental = dict.fromkeys(self.bets_incremental.iterkeys(), 0)
+
+        message = name + " has won " + str(amount) + " chips."
+        if self.pot() > 0:
+            message = message + "\nThere are still " + str(self.pot()) + " chips in the pot."
+        return message
 
     def ante(self):
         for k,v in self.players.items():
             self.bets[k] = self.bets[k] + min(self.ante_amount, v)
             self.players[k] = max(v - self.ante_amount, 0)
+        return self.print_pot()
+
+    def next_turn(self, turn):
+        if self.turn == None:
+            # No one can bet
+            return
+        
+        self.turn = turn % len(self.players)
+
+        if len(self.folds) == len(self.players):
+            # Everyone has folded (lol)
+            self.turn = None
+            return
+
+        if sum(self.players.itervalues()) == 0:
+            # Everyone is all-in
+            self.turn = None
+            return
+        
+        if self.raiser != None and self.turn == self.raiser:
+            # Finished a round of betting, go to top of round
+            self.bets_incremental = dict.fromkeys(self.bets_incremental.iterkeys(), 0)
+            self.raiser = None
+            self.next_turn(self.dealer)
+            return
+        
+        if self.players[self.bet_order[self.turn]] == 0 or self.bet_order[self.turn] in self.folds:
+            # This player has folded or is out of the game
+            self.next_turn(self.turn + 1)
+            return
 
     def pot(self):
         return sum(self.bets.itervalues())
@@ -76,16 +181,22 @@ class BetGame():
         result = ""
         for k,v in self.bets.items():
             if self.players[k] == 0:
-                result = result + k + " is all-in for " + str(v) + " chips.\n"
+                result = result + k + " is all-in for " + str(v) + " chips."
             else:
-                result = result + k + " has bet " + str(v) + " chips.\n"
+                result = result + k + " has bet " + str(v) + " chips."
+            if k in self.folds:
+                result = result + " " + k + " has folded."
+            result = result + "\n"
+            
         return result
 
     def print_turn(self):
-        if self.turn != None:
-            return self.bet_order[self.turn]
+        if self.turn == None:
+            return "No one can bet."
+        elif self.raiser == None and self.turn == self.dealer:
+            return "Top of the round. " + self.bet_order[self.turn] + "'s turn."
         else:
-            return None
+            return self.bet_order[self.turn] + "'s turn."
 
     def print_stats(self):
         result = "\n\n"
@@ -112,54 +223,39 @@ class D20Bot(JabberBot):
 
     @botcmd
     def enter(self,mess,args):
-        name = self.who(mess)
-        amount = int(args)
-        if self.game.enter(name, amount):
-            return "" + name + " entered with " + str(amount) + " chips."
-        else:
-            return "" + name + " is already in the game."
+        return self.game.enter(self.who(mess), int(args))
 
     @botcmd
     def ante(self,mess,args):
-        self.game.ante()
-        return self.game.print_pot()
+        return self.game.ante()
 
     @botcmd
     def turn(self,mess,args):
-        if self.game.print_turn() != None:
-            return "" + self.game.print_turn() + "'s turn to bet."
-        else:
-            return "All players are all-in."
+        return self.game.print_turn()
 
     @botcmd
+    def check(self,mess,args):
+        return self.game.check(self.who(mess))
+    
+    @botcmd
     def bet(self,mess,args):
-        name = self.who(mess)
-        amount = int(args)
-        result = self.game.bet(name, amount)
-        message = ""
-        if result == True:
-            message = "" + name + " bet " + str(amount) + " chips."
-        elif result == False:
-            message = "It is not your turn to bet."
-        else:
-            message = "" + name + " bet " + str(amount) + " chips. They are now all-in for " + str(result) + " chips."
-        if self.game.print_turn() != None:
-            message = message + "\n" + self.game.print_turn() + "'s turn to bet."
-        return message
+        return self.game.bet(self.who(mess), int(args))
+
+    @botcmd
+    def call(self,mess,args):
+        return self.game.call(self.who(mess))
+
+    @botcmd
+    def raising(self,mess,args):
+        return self.game.raising(self.who(mess), int(args))
+
+    @botcmd
+    def fold(self,mess,args):
+        return self.game.fold(self.who(mess))
 
     @botcmd
     def win(self,mess,args):
-        result = self.game.win(args)
-        if result == False:
-            return "" + args + " is not in the game."
-        else:
-            pot = self.game.pot()
-            potmsg = ""
-            if pot > 0:
-                potmsg = " There are still " + str(pot) + " chips in the pot."
-            else:
-                potmsg = "\n" + self.game.print_turn() +"'s turn to bet."
-            return "" + args + " won " + str(result) + " chips." + potmsg
+        return self.game.win(args)
 
     @botcmd
     def pot(self,mess,args):
